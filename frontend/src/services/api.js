@@ -1,13 +1,16 @@
 const API_BASE = 'http://127.0.0.1:8000';
 
 /**
- * Send image and optional instruction to FixIt Agent
+ * Send file and optional instruction to FixIt Agent
  */
-export async function analyzeImage(imageFile, message = '') {
+export async function analyzeFile(file, message = '', history = null) {
   const formData = new FormData();
-  formData.append('image', imageFile);
+  formData.append('file', file);
   if (message && message.trim()) {
     formData.append('message', message.trim());
+  }
+  if (history) {
+    formData.append('history', JSON.stringify(history));
   }
 
   const response = await fetch(`${API_BASE}/agent`, {

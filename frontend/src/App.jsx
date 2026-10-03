@@ -5,11 +5,11 @@ import ProblemCard from './components/ProblemCard';
 import ActionPlan from './components/ActionPlan';
 import Checklist from './components/Checklist';
 import TaskList from './components/TaskList';
-import { analyzeImage, getTasks, createTask, updateTask } from './services/api';
+import { analyzeFile, getTasks, createTask, updateTask } from './services/api';
 import { Zap, Wrench, ShieldCheck } from 'lucide-react';
 
 export default function App() {
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,9 +17,10 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [agentActivity, setAgentActivity] = useState([]);
   const [tasks, setTasks] = useState([]);
-  const [tasksCreatedCount, setTasksCreatedCount] = useState(0);
   const [updatingTaskId, setUpdatingTaskId] = useState(null);
   const [isCreatingTasks, setIsCreatingTasks] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatting, setIsChatting] = useState(false);
 
   // Fetch persisted SQLite tasks on mount
   useEffect(() => {
@@ -35,32 +36,37 @@ export default function App() {
     }
   };
 
-  const handleImageSelected = (file) => {
+  const handleFileSelected = (file) => {
     setError('');
     setResult(null);
     setAgentActivity([]);
     setTasksCreatedCount(0);
 
     if (!file) {
-      setSelectedImage(null);
+      setSelectedFile(null);
       setPreviewUrl('');
       return;
     }
 
-    // Validate size (10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setError('File is too large. Maximum supported size is 10MB.');
+    // Validate size (20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      setError('File is too large. Maximum supported size is 20MB.');
       return;
     }
 
-    setSelectedImage(file);
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
+    setSelectedFile(file);
+    if (file.type.startsWith('image/')) {
+      const objectUrl = URL.createObjectURL(file);
+      setPreviewUrl(objectUrl);
+    } else {
+      // PDF or document preview
+      setPreviewUrl('/demo/pdf-icon.png'); // fallback icon for document
+    }
   };
 
   const handleAnalyze = async () => {
-    if (!selectedImage) {
-      setError('Please upload an image first.');
+    if (!selectedFile) {
+      setError('Please upload a file first.');
       return;
     }
 
@@ -68,10 +74,10 @@ export default function App() {
     setError('');
     setTasksCreatedCount(0);
     setResult(null);
-    setAgentActivity(['✓ Image received by FixIt agent']);
+    setAgentActivity(['✓ File received by FixIt agent']);
 
     try {
-      const response = await analyzeImage(selectedImage, message);
+      const response = await analyzeFile(selectedFile, message);
       if (!response.success) {
         setError(response.error || response.final_response || 'Analysis could not be completed.');
         setResult(response);
@@ -91,6 +97,29 @@ export default function App() {
       setError(err.message || 'FixIt could not process this image right now. Check the AI configuration and try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFollowUp = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !selectedFile || !result) return;
+
+    setIsChatting(true);
+    setAgentActivity((prev) => [...prev, '✓ Processing follow-up request...']);
+    
+    try {
+      const response = await analyzeFile(selectedFile, chatInput, result);
+      if (response.success) {
+        setResult(response);
+        setAgentActivity((prev) => [...prev, '✓ Action plan updated based on chat']);
+      } else {
+        setError(response.error || 'Follow-up analysis failed.');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to process follow-up.');
+    } finally {
+      setIsChatting(false);
+      setChatInput('');
     }
   };
 
@@ -184,8 +213,8 @@ export default function App() {
               </p>
 
               <ImageUploader
-                onImageSelected={handleImageSelected}
-                selectedImage={selectedImage}
+                onFileSelected={handleFileSelected}
+                selectedFile={selectedFile}
                 previewUrl={previewUrl}
                 message={message}
                 onMessageChange={setMessage}
@@ -223,6 +252,35 @@ export default function App() {
                   isCreatingTasks={isCreatingTasks}
                   tasksCreatedCount={tasksCreatedCount}
                 />
+
+                {/* Follow-up Chat Box */}
+                <div className="card chat-card" style={{ marginTop: '24px' }}>
+                  <div className="card-header" style={{ marginBottom: '12px' }}>
+                    <div className="card-title-group">
+                      <Zap size={18} className="card-icon" />
+                      <h3 className="card-title">Refine &amp; Chat</h3>
+                    </div>
+                  </div>
+                  <form onSubmit={handleFollowUp} style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="text"
+                      className="instruction-input"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="e.g. 'Make deadlines tighter', 'Skip step 3'"
+                      style={{ flex: 1, marginTop: 0 }}
+                      disabled={isChatting}
+                    />
+                    <button
+                      type="submit"
+                      className="action-btn"
+                      style={{ width: 'auto', marginTop: 0, padding: '10px 16px' }}
+                      disabled={isChatting || !chatInput.trim()}
+                    >
+                      {isChatting ? 'Updating...' : 'Send'}
+                    </button>
+                  </form>
+                </div>
               </div>
             )}
 

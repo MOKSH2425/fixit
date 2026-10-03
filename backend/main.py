@@ -56,10 +56,11 @@ def health_check():
     """Returns backend system status."""
     return {"status": "ok"}
 
-@app.post("/agent", response_model=AgentResponse, summary="Process image through multimodal action agent")
+@app.post("/agent", response_model=AgentResponse, summary="Process file through multimodal action agent")
 async def process_agent_request(
-    image: UploadFile = File(..., description="Uploaded image file (PNG, JPG, WEBP)"),
+    file: UploadFile = File(..., description="Uploaded file (PNG, JPG, WEBP, PDF)"),
     message: Optional[str] = Form(None, description="Optional user prompt or instruction"),
+    history: Optional[str] = Form(None, description="JSON string of previous results for follow-up chat"),
 ):
     """
     Multimodal entry point:
@@ -67,14 +68,15 @@ async def process_agent_request(
     executes registered application tools, and returns actionable results.
     """
     try:
-        image_bytes = await image.read()
-        content_type = image.content_type or "image/png"
+        file_bytes = await file.read()
+        content_type = file.content_type or "application/octet-stream"
         
         agent = FixItAgent()
         result = agent.process(
-            image_bytes=image_bytes,
+            file_bytes=file_bytes,
             content_type=content_type,
             user_message=message,
+            history_json=history,
         )
         return result
     except Exception as e:

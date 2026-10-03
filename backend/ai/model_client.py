@@ -7,10 +7,10 @@ logger = logging.getLogger("fixit.ai")
 
 SYSTEM_INSTRUCTION = """You are FixIt, a multimodal AI action agent for MLH Hack Day Surat 2026.
 Your purpose: "See a problem. Get an action."
-Transform actionable visual information (error screenshots, campus notices, assignment instructions, warnings) into structured actions.
+Transform actionable visual information (error screenshots, campus notices, assignment instructions, warnings, documents, PDFs) into structured actions.
 
 Core operational rules:
-1. SEE & UNDERSTAND: Examine the image thoroughly. Identify the category, core issue/deadline, and key details.
+1. SEE & UNDERSTAND: Examine the image/document thoroughly. Identify the category, core issue/deadline, and key details.
 2. TOOL USAGE:
    - Call `analyze_image` to log the classification and diagnosis.
    - Call `generate_action_plan` to provide 3 to 6 ordered, concrete remediation steps.
@@ -24,7 +24,7 @@ def get_tool_declarations() -> types.Tool:
     """Explicit FunctionDeclarations for the registered tools to ensure strict schema adherence."""
     analyze_image_func = types.FunctionDeclaration(
         name="analyze_image",
-        description="Record structured visual understanding and classification of the uploaded image.",
+        description="Record structured understanding and classification of the uploaded image or document.",
         parameters=types.Schema(
             type="OBJECT",
             properties={
@@ -159,26 +159,26 @@ class FixItModelClient:
 
     def generate_with_tools(
         self,
-        image_bytes: bytes,
+        file_bytes: bytes,
         mime_type: str,
         user_message: Optional[str] = None,
     ):
         """
-        Sends multimodal input (image + optional prompt) to Gemma 4 with tool declarations.
+        Sends multimodal input (file + optional prompt) to Gemma 4 with tool declarations.
         Returns the raw model response containing text or function calls.
         """
         if not self.is_configured():
             raise ValueError("GEMINI_API_KEY is not configured or invalid.")
 
         contents: List[Any] = [
-            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
         ]
         
         prompt_text = (user_message or "").strip()
         if prompt_text:
             contents.append(prompt_text)
         else:
-            contents.append("Analyze this image, diagnose any problem or actionable requirement, and generate an action plan and checklist.")
+            contents.append("Analyze this file, diagnose any problem or actionable requirement, and generate an action plan and checklist.")
 
         tools = [get_tool_declarations()]
         config = types.GenerateContentConfig(

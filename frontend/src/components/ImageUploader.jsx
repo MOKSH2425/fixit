@@ -2,8 +2,8 @@ import React, { useRef } from 'react';
 import { Upload, Image as ImageIcon, Sparkles, AlertCircle } from 'lucide-react';
 
 export default function ImageUploader({
-  onImageSelected,
-  selectedImage,
+  onFileSelected,
+  selectedFile,
   previewUrl,
   message,
   onMessageChange,
@@ -16,7 +16,7 @@ export default function ImageUploader({
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      onImageSelected(file);
+      onFileSelected(file);
     }
   };
 
@@ -30,7 +30,7 @@ export default function ImageUploader({
     e.stopPropagation();
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      onImageSelected(file);
+      onFileSelected(file);
     }
   };
 
@@ -39,7 +39,7 @@ export default function ImageUploader({
       const response = await fetch(path);
       const blob = await response.blob();
       const file = new File([blob], filename, { type: blob.type || 'image/png' });
-      onImageSelected(file);
+      onFileSelected(file);
       if (defaultMessage) {
         onMessageChange(defaultMessage);
       }
@@ -82,7 +82,7 @@ export default function ImageUploader({
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/png,image/jpeg,image/jpg,image/webp"
+          accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
           style={{ display: 'none' }}
         />
 
@@ -91,8 +91,8 @@ export default function ImageUploader({
             <div className="dropzone-icon-ring">
               <Upload className="dropzone-icon" size={28} />
             </div>
-            <p className="dropzone-title">Upload a screenshot or photo</p>
-            <p className="dropzone-subtitle">Drag and drop or browse • PNG, JPG, WEBP (up to 10MB)</p>
+            <p className="dropzone-title">Upload a screenshot, photo, or PDF</p>
+            <p className="dropzone-subtitle">Drag and drop or browse • PNG, JPG, WEBP, PDF (up to 20MB)</p>
           </div>
         ) : (
           <div className="preview-container">
@@ -106,7 +106,7 @@ export default function ImageUploader({
               }}
               disabled={isLoading}
             >
-              <ImageIcon size={14} /> Change Image
+              <ImageIcon size={14} /> Change File
             </button>
           </div>
         )}
@@ -141,7 +141,7 @@ export default function ImageUploader({
         type="button"
         className={`action-btn ${isLoading ? 'loading' : ''}`}
         onClick={onAnalyze}
-        disabled={isLoading || !selectedImage}
+        disabled={isLoading || !selectedFile}
       >
         {isLoading ? (
           <>

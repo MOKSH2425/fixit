@@ -105,40 +105,13 @@ def get_tool_declarations() -> types.Tool:
         ),
     )
 
-    create_task_func = types.FunctionDeclaration(
-        name="create_task",
-        description="Persist a concrete task into the application database. Use ONLY when explicitly instructed by the user.",
-        parameters=types.Schema(
-            type="OBJECT",
-            properties={
-                "title": types.Schema(
-                    type="STRING",
-                    description="Short title of the task.",
-                ),
-                "description": types.Schema(
-                    type="STRING",
-                    description="Detailed explanation or context of the task.",
-                ),
-                "category": types.Schema(
-                    type="STRING",
-                    description="Task category.",
-                    enum=["Academic", "Personal", "Campus", "Technical", "Other"],
-                ),
-                "deadline": types.Schema(
-                    type="STRING",
-                    description="Optional deadline date or date string (e.g. YYYY-MM-DD or October 8).",
-                ),
-            },
-            required=["title"],
-        ),
-    )
+
 
     return types.Tool(
         function_declarations=[
             analyze_image_func,
             action_plan_func,
             checklist_func,
-            create_task_func,
         ]
     )
 
@@ -156,6 +129,19 @@ class FixItModelClient:
 
     def is_configured(self) -> bool:
         return bool(self.client and self.api_key)
+
+    def create_chat(self):
+        """Creates a chat session for multi-turn tool execution."""
+        if not self.is_configured():
+            raise ValueError("GEMINI_API_KEY is not configured or invalid.")
+
+        tools = [get_tool_declarations()]
+        config = types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION,
+            tools=tools,
+            temperature=0.2,
+        )
+        return self.client.chats.create(model=self.model_name, config=config)
 
     def generate_with_tools(
         self,
@@ -235,3 +221,4 @@ class FixItModelClient:
             config=config,
         )
         return final_resp
+

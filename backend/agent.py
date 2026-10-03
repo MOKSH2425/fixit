@@ -69,23 +69,35 @@ class FixItAgent:
         final_text = ""
 
         try:
-            # Step 3: Send file + prompt to model
+            # Step 3: Run chat loop for up to 5 turns to execute all model-triggered tools
+            chat = self.client.create_chat()
+
             final_prompt = user_message
             if history_json:
                 final_prompt = f"Previous context: {history_json}\n\nUser follow-up request: {user_message}\n\nPlease regenerate the analysis, action plan, and checklist addressing this follow-up request."
 
-            response = self.client.generate_with_tools(
-                file_bytes=file_bytes,
-                mime_type=content_type,
-                user_message=final_prompt,
-            )
+            initial_contents = [
+                types.Part.from_bytes(data=file_bytes, mime_type=content_type),
+            ]
+            prompt_text = (final_prompt or "").strip()
+            if prompt_text:
+                initial_contents.append(prompt_text)
+            else:
+                initial_contents.append("Analyze this file, diagnose any problem or actionable requirement, and generate an action plan and checklist.")
 
-            # Check for function calls
-            function_calls = getattr(response, "function_calls", None) or []
-            tool_executions: List[Dict[str, Any]] = []
+            activity.append("✓ File received by FixIt agent")
 
-            # Execute model-requested tools via Tool Registry
-            if function_calls:
+            response = chat.send_message(initial_contents)
+
+            for turn in range(5):
+                function_calls = getattr(response, "function_calls", None) or []
+                if not function_calls:
+                    resp_text = getattr(response, "text", "") or ""
+                    if resp_text:
+                        final_text = (final_text + " " + resp_text).strip()
+                    break
+
+                fn_response_parts = []
                 for fc in function_calls:
                     fn_name = getattr(fc, "name", "")
                     fn_args = getattr(fc, "args", {}) or {}
@@ -105,25 +117,31 @@ class FixItAgent:
                         logger.error(f"Error running tool {fn_name}: {e}")
                         res = {"status": "error", "message": str(e)}
 
-                    tool_executions.append({"name": fn_name, "result": res})
+                    fn_response_parts.append(
+                        types.Part.from_function_response(name=fn_name, response={"result": res})
+                    )
 
-                    # Map to response state and observable activity
+                    # Map tool output to response state & activity
                     if fn_name == "analyze_image":
-                        category = res.get("category", "unknown")
-                        title = res.get("title", "")
-                        problem = res.get("problem", "")
+                        category = res.get("category", category)
+                        title = res.get("title", title)
+                        problem = res.get("problem", problem)
                         if "✓ Image understood" not in activity:
                             activity.append("✓ Image understood")
                         if "✓ Problem identified" not in activity:
                             activity.append("✓ Problem identified")
 
                     elif fn_name == "generate_action_plan":
-                        actions = res.get("actions", [])
+                        res_actions = res.get("actions", [])
+                        if res_actions:
+                            actions = res_actions
                         if "✓ Action plan generated" not in activity:
                             activity.append("✓ Action plan generated")
 
                     elif fn_name == "generate_checklist":
-                        checklist = res.get("items", [])
+                        res_items = res.get("items", [])
+                        if res_items:
+                            checklist = res_items
                         if "✓ Checklist generated" not in activity:
                             activity.append("✓ Checklist generated")
 
@@ -142,35 +160,38 @@ class FixItAgent:
                             if "✓ Task created" not in activity:
                                 activity.append("✓ Task created")
 
-                # Obtain final conversational response by passing results back
-                try:
-                    contents_hist = [
-                        types.Part.from_bytes(data=file_bytes, mime_type=content_type),
-                        (final_prompt or "Analyze this document/image and provide actionable steps.").strip(),
-                    ]
-                    final_call_resp = self.client.send_tool_results(contents_hist, tool_executions)
-                    final_text = getattr(final_call_resp, "text", "") or ""
-                except Exception as ex:
-                    logger.warning(f"Could not get follow-up final text: {ex}")
-                    final_text = f"FixIt identified: {title}. {problem}"
+                # Feed execution results back into chat session
+                if fn_response_parts:
+                    response = chat.send_message(fn_response_parts)
+                else:
+                    break
 
-            else:
-                # Direct text response without tool call
-                final_text = getattr(response, "text", "") or ""
-                title = "Analysis Result"
-                problem = final_text[:200] if len(final_text) > 200 else final_text
-                activity.append("✓ Image understood")
+            # Fallbacks if tools were not invoked by model
+            if not title:
+                title = "Analysis Complete"
+            if not problem and final_text:
+                problem = final_text[:200]
+            
+            if not actions and checklist:
+                actions = list(checklist)
 
-            # Fallback checklist if action plan exists but checklist tool wasn't called
             if actions and not checklist:
                 checklist = [a.split(". ")[-1] for a in actions]
-                activity.append("✓ Checklist generated")
+                if "✓ Checklist generated" not in activity:
+                    activity.append("✓ Checklist generated")
+
+            if not actions and (problem or final_text):
+                text_to_parse = final_text or problem
+                raw_steps = [s.strip("- *•0123456789.") for s in text_to_parse.split("\n") if len(s.strip()) > 5]
+                if raw_steps:
+                    actions = raw_steps[:5]
+                    checklist = list(actions)
 
             return AgentResponse(
                 success=True,
                 category=category,
                 title=title or "Analysis Complete",
-                problem=problem,
+                problem=problem or "Visual input processed successfully.",
                 actions=actions,
                 checklist=checklist,
                 created_tasks=created_tasks,

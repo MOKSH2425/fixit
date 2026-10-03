@@ -10,7 +10,7 @@ export default function TaskList({ tasks = [], onToggleTask, updatingTaskId = nu
       <div className="task-list-header">
         <div className="task-list-title-group">
           <Database size={18} className="db-icon" />
-          <h3 className="section-title">Persistent Application Tasks</h3>
+          <h3 className="section-title">Your Task List</h3>
           <span className="task-count-badge">
             {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
           </span>
@@ -25,10 +25,6 @@ export default function TaskList({ tasks = [], onToggleTask, updatingTaskId = nu
           </div>
         )}
       </div>
-
-      <p className="task-list-subtitle">
-        Backed by local SQLite database. Survives browser refresh and app restart.
-      </p>
 
       {tasks.length === 0 ? (
         <div className="empty-tasks-card">

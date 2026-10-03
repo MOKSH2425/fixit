@@ -24,13 +24,6 @@ export default function Checklist({
         <div className="card-title-group">
           <CheckSquare size={18} className="card-icon" />
           <h3 className="card-title">Verification Checklist</h3>
-        </div>
-
-        {tasksCreatedCount > 0 && (
-          <span className="tasks-created-badge">
-            <Check size={14} /> ✓ {tasksCreatedCount} task{tasksCreatedCount > 1 ? 's' : ''} created
-          </span>
-        )}
       </div>
 
       <div className="checklist-items">
@@ -54,26 +47,6 @@ export default function Checklist({
           );
         })}
       </div>
-
-      <div className="checklist-actions">
-        <button
-          type="button"
-          className="create-tasks-btn"
-          onClick={() => onCreateTasks(items)}
-          disabled={isCreatingTasks}
-        >
-          {isCreatingTasks ? (
-            <>
-              <Loader2 size={16} className="spin-icon" />
-              Creating SQLite Tasks...
-            </>
-          ) : (
-            <>
-              <PlusCircle size={16} />
-              Create Tasks in Application ({items.length})
-            </>
-          )}
-        </button>
       </div>
     </div>
   );

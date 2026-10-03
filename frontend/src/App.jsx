@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import ImageUploader from './components/ImageUploader';
-import AgentActivity from './components/AgentActivity';
 import ProblemCard from './components/ProblemCard';
 import ActionPlan from './components/ActionPlan';
 import Checklist from './components/Checklist';
@@ -89,14 +88,12 @@ export default function App() {
       if (!response.success) {
         setError(response.error || response.final_response || 'Analysis could not be completed.');
         setResult(response);
-        if (response.agent_activity && response.agent_activity.length > 0) {
-          setAgentActivity(response.agent_activity);
-        }
       } else {
         setResult(response);
-        setAgentActivity(response.agent_activity || ['✓ Image understood', '✓ Action plan generated']);
-        // If agent already persisted tasks via tool:
-        if (response.created_tasks && response.created_tasks.length > 0) {
+        // Automatically create tasks for the user!
+        if (response.checklist && response.checklist.length > 0) {
+          await handleCreateTasksFromChecklist(response.checklist, response);
+        } else if (response.created_tasks && response.created_tasks.length > 0) {
           setTasksCreatedCount(response.created_tasks.length);
           await loadTasks();
         }
@@ -131,16 +128,16 @@ export default function App() {
     }
   };
 
-  const handleCreateTasksFromChecklist = async (items) => {
+  const handleCreateTasksFromChecklist = async (items, analysisResult = result) => {
     if (!items || items.length === 0) return;
     setIsCreatingTasks(true);
     let createdCount = 0;
 
     // Determine category based on current analysis
     let cat = 'Other';
-    if (result?.category === 'campus_notice' || result?.category === 'assignment') {
+    if (analysisResult?.category === 'campus_notice' || analysisResult?.category === 'assignment') {
       cat = 'Academic';
-    } else if (result?.category === 'technical_error') {
+    } else if (analysisResult?.category === 'technical_error') {
       cat = 'Technical';
     }
 
@@ -148,19 +145,13 @@ export default function App() {
       for (const item of items) {
         await createTask({
           title: item,
-          description: result?.title ? `Derived from: ${result.title}` : undefined,
+          description: analysisResult?.title ? `Derived from: ${analysisResult.title}` : undefined,
           category: cat,
-          deadline: result?.important_details?.find((d) => /\d{4}|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep/i.test(d)),
+          deadline: analysisResult?.important_details?.find((d) => /\d{4}|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep/i.test(d)),
         });
         createdCount++;
       }
       setTasksCreatedCount(createdCount);
-      setAgentActivity((prev) => {
-        if (!prev.includes('✓ Task created')) {
-          return [...prev, '✓ Task created'];
-        }
-        return prev;
-      });
       await loadTasks();
     } catch (err) {
       setError(`Your analysis succeeded, but the task could not be saved: ${err.message}`);
@@ -234,9 +225,6 @@ export default function App() {
                 error={error}
               />
             </div>
-
-            {/* Observable Agent Activity */}
-            <AgentActivity activities={agentActivity} isProcessing={isLoading} />
           </section>
 
           {/* Right Column: Structured Results & Persistent Tasks */}

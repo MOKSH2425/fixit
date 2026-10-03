@@ -6,7 +6,7 @@ import ActionPlan from './components/ActionPlan';
 import Checklist from './components/Checklist';
 import TaskList from './components/TaskList';
 import { analyzeFile, getTasks, createTask, updateTask } from './services/api';
-import { Zap, Wrench, ShieldCheck } from 'lucide-react';
+import { Zap, Wrench, ShieldCheck, Moon, Sun } from 'lucide-react';
 
 export default function App() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -17,10 +17,18 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [agentActivity, setAgentActivity] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [tasksCreatedCount, setTasksCreatedCount] = useState(0);
   const [updatingTaskId, setUpdatingTaskId] = useState(null);
   const [isCreatingTasks, setIsCreatingTasks] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
+
+  // Theme state
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  useEffect(() => {
+    document.body.className = isDarkMode ? 'dark-theme' : 'light-theme';
+  }, [isDarkMode]);
 
   // Fetch persisted SQLite tasks on mount
   useEffect(() => {
@@ -191,6 +199,9 @@ export default function App() {
         </div>
 
         <div className="header-badges">
+          <button className="theme-toggle-btn" onClick={() => setIsDarkMode(!isDarkMode)} title="Toggle Dark/Light Mode">
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           <span className="hack-badge">MLH Hacktoberfest '26</span>
           <span className="safety-badge">
             <ShieldCheck size={14} /> Safe Execution Sandbox
